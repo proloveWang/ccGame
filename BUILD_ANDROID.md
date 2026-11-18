@@ -332,6 +332,7 @@ cd ~/ccGame && buildozer -v android debug
 | `src_c/_sdl2/sdl2.c: fatal error: 'longintrepr.h' file not found` | p4a 内置的 pygame recipe 锁在 2.1.0，它的 C 源码引用了 Python 3.11 已移位的 `longintrepr.h` | 本项目已用 `tools/p4a_recipes/pygame` 把版本覆盖成 2.5.2（配 `p4a.local_recipes`）；若手改了 recipe，删 `.buildozer` 后重建 |
 | `Compiling Cython files` + `You need cython. https://cython.org/, python -m pip install cython --user` | pygame 源码用的是 GitHub 归档，里面只有 `.pyx`、没有预生成的 `.c`，setup.py 于是要求 Cython | recipe 的 `url` 已改指 PyPI sdist（带全套预生成 `.c`）；若用旧缓存构建，先 `rm -rf ~/.buildozer/android/platform/build-*/build/other_builds/pygame` 再重建 |
 | `CMake Error ... Compatibility with CMake < 3.5 has been removed` | runner 自带的 CMake 4.x 不再兼容旧写法（jpeg/png 等 recipe） | 构建前设 `export CMAKE_POLICY_VERSION_MINIMUM=3.5` |
+| `gradlew ... failed` + `Unsupported class file major version 69` | runner 镜像默认 `JAVA_HOME` 是 JDK 25，p4a 用的 Gradle 8.0.2 读不了 Java 25 的 class 文件 | 把 `JAVA_HOME` 显式指向 JDK 17（工作流已自动处理），`java -version` 应该是 17 |
 | `Java version ... not supported` / `javac` 相关错误 | JDK 不是 17 | `sudo apt install openjdk-17-jdk`，`update-alternatives` 选 17 |
 | 下载 SDK/NDK 卡住或超时 | 网络问题 | 直接重跑命令续传；或手动下载后放进 `~/.buildozer/android/platform/` |
 | 构建极慢、`Permission denied`、软链接失败 | 项目放在 `/mnt/e` 等 Windows 挂载盘 | `cp -r` 到 `~/ccGame` 再构建 |

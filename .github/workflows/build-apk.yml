@@ -51,7 +51,17 @@ jobs:
             git zip unzip openjdk-17-jdk autoconf automake libtool pkg-config \
             zlib1g-dev libncurses-dev libtinfo6 cmake libffi-dev libssl-dev \
             libltdl-dev build-essential
-          java -version
+          # runner 镜像默认的 JAVA_HOME 是 JDK 25，而 p4a 用的 Gradle 8.0.2
+          # 读不了 Java 25 的 class 文件（Unsupported class file major version 69），
+          # 所以必须显式把 JAVA_HOME 切到 JDK 17，光装 openjdk-17-jdk 不够。
+          JAVA17="${JAVA_HOME_17_X64:-$(ls -d /usr/lib/jvm/*17* 2>/dev/null | head -n 1)}"
+          if [ -z "$JAVA17" ]; then
+            echo "找不到 JDK 17"; ls -l /usr/lib/jvm; exit 1
+          fi
+          echo "JAVA17=$JAVA17"
+          echo "JAVA_HOME=$JAVA17" >> "$GITHUB_ENV"
+          echo "$JAVA17/bin" >> "$GITHUB_PATH"
+          "$JAVA17/bin/java" -version
 
       - name: 安装 Buildozer
         run: |
@@ -79,14 +89,23 @@ jobs:
           restore-keys: |
             buildozer-${{ runner.os }}-
 
-      # p4a 的 unpack() 发现构建目录已存在就跳过解压，缓存里很可能残留着
-      # 上一轮用「GitHub 源码归档」解压出来的 pygame 源码（没有预生成的 .c）。
-      # 只改 recipe 的下载地址是不够的，必须把这两个目录删掉才会重新下载。
-      - name: 清理缓存里残留的 pygame 源码
+      # 前几轮构建用的是 GitHub 源码归档（只有 .pyx，没有预生成的 .c），
+      # 而 p4a 的 unpack() 发现构建目录已存在就跳过解压，所以缓存里可能残留旧源码。
+      # 只在「缺少预生成 C」时才删，避免把已经修好的缓存白清一遍。
+      - name: 清理缓存里残留的旧 pygame 源码
         run: |
-          rm -rf ~/.buildozer/android/platform/build-*/build/other_builds/pygame
-          rm -rf ~/.buildozer/android/platform/build-*/packages/pygame
-          echo "已清理 pygame 构建/下载缓存"
+          BASE=~/.buildozer/android/platform
+          for d in $BASE/build-*/build/other_builds/pygame; do
+            [ -d "$d" ] || continue
+            if [ ! -f "$d/src_c/_sdl2/audio.c" ]; then
+              echo "发现无预生成 C 的 pygame 源码，删除：$d"
+              rm -rf "$d"
+              rm -rf $BASE/build-*/packages/pygame
+              rm -rf ~/.buildozer/android/packages/pygame
+            else
+              echo "pygame 源码正常，保留：$d"
+            fi
+          done
 
       # p4a v2024.01.21 的 jpeg/png 等 recipe 用的是 cmake_minimum_required(VERSION 2.8) 旧写法，
       # runner 自带的 CMake 4.x 已彻底不兼容（/usr/bin/cmake 也是 4.x）。
@@ -110,6 +129,8 @@ jobs:
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
         run: |
           set -o pipefail
+          echo "JAVA_HOME=$JAVA_HOME"
+          java -version 2>&1 | head -n 1
           cmake --version | head -n 1
           buildozer -v android debug 2>&1 | tee buildozer-build.log
 
