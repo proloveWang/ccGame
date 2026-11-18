@@ -1,19 +1,32 @@
 # -*- coding: utf-8 -*-
 # 文件作用：飞机大战游戏主程序，基于 pygame-ce 开发，电脑与安卓手机均可运行
 # 设计说明：所有画面均由几何图形绘制，不依赖外部图片素材，方便后续打包成 APK
-# 操作方式：电脑用鼠标拖动或方向键移动（键盘一动即接管，指针跟随让位），手机用手指拖动；自动开火，P 键暂停
+# 操作方式：电脑用鼠标拖动或方向键移动（键盘一动即接管，指针跟随让位），手机用手指拖动；自动开火；
+#           暂停可点右上角按钮，电脑也可按 P 键
 
 # ========== 1. 导入所需标准库与第三方库 ==========
+import os                                    # 导入 os 模块，用于识别是否运行在安卓打包环境
 import sys                                   # 导入 sys 模块，用于在退出时关闭解释器
 import random                               # 导入 random 模块，用于生成随机位置与随机数值
 import math                                 # 导入 math 模块，用于角度与距离等数学计算
 import pygame                               # 导入 pygame 游戏库，负责画面、事件与帧率控制
 
 # ========== 2. 全局常量：窗口与帧率 ==========
-SCREEN_WIDTH = 480                          # 定义游戏窗口宽度（像素），竖屏比例适配手机
-SCREEN_HEIGHT = 800                         # 定义游戏窗口高度（像素），竖屏比例适配手机
+SCREEN_WIDTH = 480                          # 定义游戏逻辑画面宽度（像素），竖屏比例适配手机
+SCREEN_HEIGHT = 800                         # 定义游戏逻辑画面高度（像素），竖屏比例适配手机
 FPS = 60                                    # 定义每秒刷新帧数，保证动画流畅不卡顿
 TITLE = "Plane War"                         # 定义窗口标题文字
+
+# 运行平台判断：python-for-android 打包出的安卓环境会注入 ANDROID_ARGUMENT 环境变量
+IS_ANDROID = "ANDROID_ARGUMENT" in os.environ
+
+# 显示模式：SCALED 让游戏始终按 480×800 的逻辑分辨率绘制，再由 SDL 等比缩放到真实窗口，
+# 于是不同尺寸/比例的屏幕都能自适应，鼠标坐标也会被自动换算回逻辑坐标。
+# 安卓额外叠加 FULLSCREEN 铺满屏幕（多余部分留黑边，不拉伸变形），桌面则允许拖拽改变窗口大小
+if IS_ANDROID:
+    DISPLAY_FLAGS = pygame.SCALED | pygame.FULLSCREEN     # 安卓：全屏 + 等比缩放
+else:
+    DISPLAY_FLAGS = pygame.SCALED | pygame.RESIZABLE      # 桌面：可改尺寸 + 等比缩放
 
 # ========== 3. 全局常量：颜色（RGB 元组） ==========
 COLOR_BLACK = (8, 10, 24)                   # 背景深空颜色，偏深蓝黑色
@@ -41,6 +54,16 @@ ENEMY_SPEED = 2.5                           # 定义普通敌机下落的基础�
 SPAWN_INTERVAL = 45                         # 定义普通敌机生成间隔（帧），越小敌机越密集
 POWERUP_DROP_RATE = 0.18                    # 定义敌机被击毁后掉落道具的概率
 INVINCIBLE_FRAMES = 90                      # 定义玩家受击后的无敌闪烁帧数（约1.5秒）
+
+# 右上角暂停按钮：手机没有键盘，靠这个按钮进入/退出暂停
+PAUSE_BUTTON_SIZE = 44                      # 暂停按钮方块边长（逻辑像素，随画面等比缩放）
+PAUSE_BUTTON_MARGIN = 12                    # 按钮与屏幕上边缘、右边缘的间距
+PAUSE_BUTTON_RECT = pygame.Rect(            # 按钮的命中矩形，直接用于点击判定
+    SCREEN_WIDTH - PAUSE_BUTTON_SIZE - PAUSE_BUTTON_MARGIN,  # 左边界：靠右侧留边
+    PAUSE_BUTTON_MARGIN,                    # 上边界：靠顶部留边
+    PAUSE_BUTTON_SIZE,                      # 宽度
+    PAUSE_BUTTON_SIZE                       # 高度
+)
 
 # ========== 6. 工具函数：加载字体 ==========
 def load_font(size):
@@ -403,7 +426,7 @@ class Game:
     def __init__(self):
         # 初始化方法：初始化 pygame、窗口、字体与各类游戏数据
         pygame.init()                      # 初始化 pygame 全部子系统
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))  # 创建游戏窗口
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), DISPLAY_FLAGS)  # 创建可自适应缩放的窗口
         pygame.display.set_caption(TITLE)   # 设置窗口标题
         self.clock = pygame.time.Clock()    # 创建时钟对象用于控制帧率
         self.font_big = load_font(44)        # 加载大号字体用于标题与结算
@@ -442,27 +465,36 @@ class Game:
                     self.reset_game()        # 重置一局
                     self.state = STATE_PLAYING  # 直接进入游戏中
             elif event.type == pygame.MOUSEBUTTONDOWN:  # 收到鼠标按下事件
-                self.handle_pointer(event.pos)  # 把鼠标位置交给指针处理
+                if not getattr(event, "touch", False):  # 跳过触屏合成的鼠标事件，避免与 FINGERDOWN 重复触发
+                    self.handle_pointer(event.pos, tap=True)  # 把鼠标位置交给指针处理（按点击处理）
             elif event.type == pygame.MOUSEMOTION and event.buttons[0]:  # 按住鼠标拖动
-                self.handle_pointer(event.pos)  # 跟随更新指针目标
+                if not getattr(event, "touch", False):  # 同样跳过触屏合成的拖动事件
+                    self.handle_pointer(event.pos, tap=False)  # 跟随更新指针目标（按拖动处理）
             elif event.type == pygame.FINGERDOWN:  # 收到安卓手指按下事件
-                pos = (event.x * SCREEN_WIDTH, event.y * SCREEN_HEIGHT)  # 归一化坐标换算为像素
-                self.handle_pointer(pos)   # 交给指针处理
+                pos = (event.x * SCREEN_WIDTH, event.y * SCREEN_HEIGHT)  # 归一化坐标换算为逻辑像素
+                self.handle_pointer(pos, tap=True)  # 交给指针处理（按点击处理）
             elif event.type == pygame.FINGERMOTION:  # 收到安卓手指移动事件
-                pos = (event.x * SCREEN_WIDTH, event.y * SCREEN_HEIGHT)  # 换算为像素坐标
-                self.handle_pointer(pos)   # 跟随更新指针目标
+                pos = (event.x * SCREEN_WIDTH, event.y * SCREEN_HEIGHT)  # 换算为逻辑像素坐标
+                self.handle_pointer(pos, tap=False)  # 跟随更新指针目标（按拖动处理）
 
-    def handle_pointer(self, pos):
-        # 方法作用：根据当前状态处理指针点击或拖动
-        # 参数 pos：像素坐标元组 (x, y)
-        if self.state == STATE_START:       # 在开始界面点击
-            self.start_game()               # 开始新一局
-        elif self.state == STATE_GAMEOVER:  # 在结束界面点击
-            self.reset_game()               # 重置一局
-            self.state = STATE_PLAYING      # 进入游戏中
-        elif self.state == STATE_PAUSED:    # 在暂停界面点击
-            self.state = STATE_PLAYING      # 点击后继续游戏
+    def handle_pointer(self, pos, tap=False):
+        # 方法作用：根据当前状态处理指针点击（tap=True）或按住拖动（tap=False）
+        # 参数 pos：逻辑像素坐标元组 (x, y)；tap：是否为一次按下动作
+        if self.state == STATE_START:       # 在开始界面
+            if tap:                         # 只有点按才开局，拖动不误触发
+                self.start_game()           # 开始新一局
+        elif self.state == STATE_GAMEOVER:  # 在结束界面
+            if tap:                         # 只有点按才重开，避免手指还按着时立刻重开
+                self.reset_game()           # 重置一局
+                self.state = STATE_PLAYING  # 进入游戏中
+        elif self.state == STATE_PAUSED:    # 在暂停界面
+            if tap:                         # 只有点按才继续，拖动不误触发
+                self.state = STATE_PLAYING  # 点击后继续游戏
         else:                               # 游戏进行中
+            if tap and PAUSE_BUTTON_RECT.collidepoint(pos):  # 点中了右上角暂停按钮
+                self.player.pointer_active = False  # 放开指针跟随，恢复时战机不会飘向按钮
+                self.toggle_pause()         # 进入暂停状态
+                return                      # 本次点击不再当作移动指令
             self.player.set_target(pos[0], pos[1])  # 更新玩家跟随目标位置
 
     def start_game(self):
@@ -471,9 +503,10 @@ class Game:
         self.state = STATE_PLAYING          # 切换到游戏进行状态
 
     def toggle_pause(self):
-        # 方法作用：在游戏中与暂停状态之间切换
+        # 方法作用：在游戏中与暂停状态之间切换（键盘 P 键与右上角按钮共用）
         if self.state == STATE_PLAYING:     # 当前正在游戏
             self.state = STATE_PAUSED       # 切换为暂停
+            self.player.pointer_active = False  # 清掉指针跟随，恢复后战机不会自己飘走
         elif self.state == STATE_PAUSED:     # 当前处于暂停
             self.state = STATE_PLAYING      # 恢复为游戏中
 
@@ -608,6 +641,18 @@ class Game:
         power_text = self.cached_text("power", f"POWER: {self.player.power_level}", self.font_small, COLOR_BLUE)  # 取火力文字画面
         self.screen.blit(power_text, (16, 60))  # 把火力贴到生命下方
 
+    def draw_pause_button(self):
+        # 方法作用：绘制右上角暂停按钮（圆角深色底 + 灰色描边 + 两根白色竖条）
+        pygame.draw.rect(self.screen, (26, 30, 48), PAUSE_BUTTON_RECT, border_radius=10)  # 绘制按钮底色
+        pygame.draw.rect(self.screen, COLOR_GRAY, PAUSE_BUTTON_RECT, 2, border_radius=10)  # 绘制按钮描边
+        bar_width = 6                       # 暂停图标的单根竖条宽度
+        bar_height = 20                     # 暂停图标的单根竖条高度
+        bar_top = PAUSE_BUTTON_RECT.centery - bar_height // 2  # 竖条顶部（垂直居中）
+        left_bar_x = PAUSE_BUTTON_RECT.centerx - 9   # 左侧竖条的左边界
+        right_bar_x = PAUSE_BUTTON_RECT.centerx + 3  # 右侧竖条的左边界
+        pygame.draw.rect(self.screen, COLOR_WHITE, (left_bar_x, bar_top, bar_width, bar_height), border_radius=2)  # 左侧竖条
+        pygame.draw.rect(self.screen, COLOR_WHITE, (right_bar_x, bar_top, bar_width, bar_height), border_radius=2)  # 右侧竖条
+
     def draw_center_text(self, text, font, color, y_offset=0):
         # 方法作用：在屏幕水平居中位置绘制文字
         # 参数 text：文字内容；font：字体；color：颜色；y_offset：纵向偏移
@@ -624,8 +669,8 @@ class Game:
         if self.state == STATE_START:          # 如果处于开始菜单
             self.draw_center_text(TITLE, self.font_big, COLOR_GREEN, -120)  # 绘制大标题
             self.draw_center_text("Touch / Click to Start", self.font_mid, COLOR_WHITE, -40)  # 绘制开始提示
-            self.draw_center_text("Move: drag or arrow keys", self.font_small, COLOR_GRAY, 10)  # 绘制操作说明
-            self.draw_center_text("P: Pause", self.font_small, COLOR_GRAY, 36)  # 绘制暂停说明
+            self.draw_center_text("Move: drag or arrow keys", self.font_small, COLOR_GRAY, 10)  # 绘制移动说明
+            self.draw_center_text("Pause: P key or top-right button", self.font_small, COLOR_GRAY, 36)  # 绘制暂停说明
         elif self.state == STATE_PLAYING or self.state == STATE_PAUSED:  # 游戏中或暂停
             for powerup in self.powerups:      # 绘制所有道具
                 powerup.draw(self.screen)      # 贴出道具
@@ -639,6 +684,8 @@ class Game:
             for particle in self.particles:    # 绘制爆炸粒子
                 particle.draw(self.screen)     # 贴出粒子
             self.draw_hud()                    # 绘制顶部 HUD 信息
+            if self.state == STATE_PLAYING:     # 仅游戏进行中显示暂停按钮
+                self.draw_pause_button()        # 绘制右上角暂停按钮
             if self.state == STATE_PAUSED:     # 如果处于暂停状态
                 overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))  # 创建半透明遮罩层
                 overlay.set_alpha(160)         # 设置遮罩透明度
