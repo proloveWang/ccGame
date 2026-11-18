@@ -33,6 +33,13 @@ requirements = python3, pygame
 # 启动引导方式：pygame 必须走 SDL2 引导（p4a 默认也是它，这里显式写出避免被覆盖）
 p4a.bootstrap = sdl2
 
+# python-for-android 的版本（决定安卓端编译用哪个 Python）
+# 说明：p4a 的 master / v2026.05.09 已把内置 Python 升到 3.14，但它的 pygame recipe 仍锁定 pygame 2.1.0，
+#      编译时报 src_c/_sdl2/sdl2.c: fatal error: 'longintrepr.h' file not found（该头文件 3.13+ 已移除）。
+#      v2024.01.21 内置 Python 3.11.5，与这个 recipe 匹配，实测可编译通过。
+#      改这里之后必须删掉 .buildozer 重建，否则会继续用旧 p4a。
+p4a.branch = v2024.01.21
+
 # 横竖屏方向：portrait 竖屏，适配手机飞机大战
 orientation = portrait
 

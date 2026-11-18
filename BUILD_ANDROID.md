@@ -282,6 +282,7 @@ docker run --rm -v "${PWD}:/home/user/hostcwd" -v ccgame-buildozer:/home/user/.b
 | `source.exclude_dirs` | `.idea, __pycache__` | 排除 IDE 与缓存目录 |
 | `requirements` | `python3, pygame` | **必须写 `pygame`**！p4a 没有 `pygame-ce` recipe，写成它会导致构建中断 |
 | `p4a.bootstrap` | `sdl2` | pygame 必须走 SDL2 引导 |
+| `p4a.branch` | `v2024.01.21` | 固定 p4a 版本：新版已内置 Python 3.14，而它的 pygame recipe 仍锁 pygame 2.1.0，会报 `longintrepr.h` 找不到；这个版内置 Python 3.11，能编过 |
 | `orientation` | `portrait` | 竖屏 |
 | `version` | `1.0.0` | 版本号，出现在产物文件名里 |
 | `android.api` | `33` | 编译用目标 SDK；上架 Google Play 需 ≥34 |
@@ -327,6 +328,7 @@ cd ~/ccGame && buildozer -v android debug
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
 | `Recipe for pygame-ce ... not found` / 构建中断 | `requirements` 被改成 `pygame-ce` | 改回 `pygame`，执行 `buildozer android clean` 后重建 |
+| `src_c/_sdl2/sdl2.c: fatal error: 'longintrepr.h' file not found` | p4a 用的是 Python 3.13+，而 pygame recipe 里的 pygame 2.1.0 不支持 | 设 `p4a.branch = v2024.01.21`（Python 3.11），删 `.buildozer` 后重建 |
 | `Java version ... not supported` / `javac` 相关错误 | JDK 不是 17 | `sudo apt install openjdk-17-jdk`，`update-alternatives` 选 17 |
 | 下载 SDK/NDK 卡住或超时 | 网络问题 | 直接重跑命令续传；或手动下载后放进 `~/.buildozer/android/platform/` |
 | 构建极慢、`Permission denied`、软链接失败 | 项目放在 `/mnt/e` 等 Windows 挂载盘 | `cp -r` 到 `~/ccGame` 再构建 |
