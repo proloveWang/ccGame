@@ -79,6 +79,15 @@ jobs:
           restore-keys: |
             buildozer-${{ runner.os }}-
 
+      # p4a 的 unpack() 发现构建目录已存在就跳过解压，缓存里很可能残留着
+      # 上一轮用「GitHub 源码归档」解压出来的 pygame 源码（没有预生成的 .c）。
+      # 只改 recipe 的下载地址是不够的，必须把这两个目录删掉才会重新下载。
+      - name: 清理缓存里残留的 pygame 源码
+        run: |
+          rm -rf ~/.buildozer/android/platform/build-*/build/other_builds/pygame
+          rm -rf ~/.buildozer/android/platform/build-*/packages/pygame
+          echo "已清理 pygame 构建/下载缓存"
+
       # p4a v2024.01.21 的 jpeg/png 等 recipe 用的是 cmake_minimum_required(VERSION 2.8) 旧写法，
       # runner 自带的 CMake 4.x 已彻底不兼容（/usr/bin/cmake 也是 4.x）。
       # 直接从 PyPI 装一个 CMake 3.x 并把它的 bin 前置到 PATH，让 p4a 用 3.x 构建。

@@ -17,6 +17,18 @@ python-for-android（p4a）自带的 pygame recipe 一直锁在 pygame 2.1.0（2
 pygame 2.5.x 的 C 源码已经不引用这个头文件，因此这里把版本提到 2.5.2，
 其余构建逻辑与 p4a v2024.01.21 的 recipe 完全一致（Setup.Android.SDL2.in 模板两版相同）。
 
+下载源为什么是 PyPI 的 sdist，而不是 GitHub 源码归档
+---------------------------------------------------
+GitHub 的 ``archive/{version}.tar.gz`` 只提交了 ``.pyx``（Cython 源），没有生成的 ``.c``，
+setup.py 于是会走编译 Cython 分支，需要 hostpython 里装有 Cython，否则直接失败::
+
+    Compiling Cython files
+    You need cython. https://cython.org/, python -m pip install cython --user
+
+而 PyPI 的 sdist（15.7 MB，比源码归档大 10 MB）带了全套预生成 ``.c``，
+setup.py 检测到 ``src_c/_sdl2/audio.c`` 与 ``src_c/pypm.c`` 存在就打印
+``Skipping Cython compilation``，完全不需要 Cython。
+
 使用方式：buildozer.spec 里 ``p4a.local_recipes = ./tools/p4a_recipes``
 """
 
@@ -35,9 +47,11 @@ class Pygame2Recipe(CompiledComponentsPythonRecipe):
         not part of the build. It's usable, but not complete.
     """
 
-    # 与上游唯一的差异：2.1.0 -> 2.5.2
+    # 与上游的差异：2.1.0 -> 2.5.2，且下载源换成带预生成 C 的 PyPI sdist
     version = '2.5.2'
-    url = 'https://github.com/pygame/pygame/archive/{version}.tar.gz'
+    url = ('https://files.pythonhosted.org/packages/c6/aa/'
+           '2c0c867d6cff00966cfc2152b25f61599f87e88b239e4dcb8ad5357f0f69/'
+           'pygame-{version}.tar.gz')
 
     site_packages_name = 'pygame'
     name = 'pygame'

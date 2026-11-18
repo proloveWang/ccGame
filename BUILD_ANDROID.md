@@ -283,7 +283,7 @@ docker run --rm -v "${PWD}:/home/user/hostcwd" -v ccgame-buildozer:/home/user/.b
 | `requirements` | `python3, pygame` | **必须写 `pygame`**！p4a 没有 `pygame-ce` recipe，写成它会导致构建中断 |
 | `p4a.bootstrap` | `sdl2` | pygame 必须走 SDL2 引导 |
 | `p4a.branch` | `v2024.01.21` | 固定 p4a 版本：新版内置 Python 3.14，而 pygame 2.5.x 只支持到 3.12；这版内置 Python 3.11 |
-| `p4a.local_recipes` | `./tools/p4a_recipes` | 本地覆盖 recipe 目录，把 p4a 内置的 pygame 2.1.0 换成 2.5.2（详见 [tools/p4a_recipes/pygame](tools/p4a_recipes/pygame/__init__.py)） |
+| `p4a.local_recipes` | `./tools/p4a_recipes` | 本地覆盖 recipe 目录，把 p4a 内置的 pygame 2.1.0 换成 2.5.2，并改从 PyPI sdist 下载（带预生成 C，不依赖 Cython）；详见 [tools/p4a_recipes/pygame](tools/p4a_recipes/pygame/__init__.py) |
 | `orientation` | `portrait` | 竖屏 |
 | `version` | `1.0.0` | 版本号，出现在产物文件名里 |
 | `android.api` | `33` | 编译用目标 SDK；上架 Google Play 需 ≥34 |
@@ -330,6 +330,7 @@ cd ~/ccGame && buildozer -v android debug
 | --- | --- | --- |
 | `Recipe for pygame-ce ... not found` / 构建中断 | `requirements` 被改成 `pygame-ce` | 改回 `pygame`，执行 `buildozer android clean` 后重建 |
 | `src_c/_sdl2/sdl2.c: fatal error: 'longintrepr.h' file not found` | p4a 内置的 pygame recipe 锁在 2.1.0，它的 C 源码引用了 Python 3.11 已移位的 `longintrepr.h` | 本项目已用 `tools/p4a_recipes/pygame` 把版本覆盖成 2.5.2（配 `p4a.local_recipes`）；若手改了 recipe，删 `.buildozer` 后重建 |
+| `Compiling Cython files` + `You need cython. https://cython.org/, python -m pip install cython --user` | pygame 源码用的是 GitHub 归档，里面只有 `.pyx`、没有预生成的 `.c`，setup.py 于是要求 Cython | recipe 的 `url` 已改指 PyPI sdist（带全套预生成 `.c`）；若用旧缓存构建，先 `rm -rf ~/.buildozer/android/platform/build-*/build/other_builds/pygame` 再重建 |
 | `CMake Error ... Compatibility with CMake < 3.5 has been removed` | runner 自带的 CMake 4.x 不再兼容旧写法（jpeg/png 等 recipe） | 构建前设 `export CMAKE_POLICY_VERSION_MINIMUM=3.5` |
 | `Java version ... not supported` / `javac` 相关错误 | JDK 不是 17 | `sudo apt install openjdk-17-jdk`，`update-alternatives` 选 17 |
 | 下载 SDK/NDK 卡住或超时 | 网络问题 | 直接重跑命令续传；或手动下载后放进 `~/.buildozer/android/platform/` |
