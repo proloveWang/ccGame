@@ -208,12 +208,15 @@ adb install -r planewar-1.0.0-arm64-v8a-debug.apk
 
 失败时下载 `build-log` 产物，里面是完整 buildozer 输出，对照第 7 章的报错表排查。
 
+产出校验（本次实测）：APK 约 16.3 MB，包内 `lib/arm64-v8a/` 有 `libpython3.11.so` 与 `libSDL2*.so`；pygame 2.5.2 的 35 个 `.so` 与 `.pyc` 打包在 `libpybundle.so`（gzip+tar）的 `site-packages/pygame/` 下，`main.pyc` 在 `assets/private.tar` 里。本机可保留一份在 `bin/`（该目录被 `.gitignore` 忽略）。
+
 ### 3.3 耗时与额度
 
 | 项目 | 说明 |
 | --- | --- |
 | 首次构建 | 约 40–70 分钟（下载 SDK/NDK + 编译 CPython + pygame） |
 | 后续构建 | 缓存命中约 10–25 分钟（工作流缓存 `~/.buildozer` 与 `~/.gradle`） |
+| 本项目实测 | 冷构建（含工具链下载）约 45 分钟；缓存命中后一轮 10:40 → 10:51，约 **11 分钟**出包 |
 | 单次上限 | 工作流设 300 分钟，GitHub 硬上限 6 小时 |
 | 免费额度 | **公开仓库的 Actions 不限时长**；私有仓库每月 2000 分钟 |
 | 缓存上限 | 单仓库 10 GB，超出后旧缓存被自动淘汰 |
