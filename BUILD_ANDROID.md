@@ -10,14 +10,15 @@
 
 - [0. 结论先行](#0-结论先行)
 - [1. 为什么 Windows 上不能直接打包](#1-为什么-windows-上不能直接打包)
-- [2. 方案 A：WSL2（推荐）](#2-方案-awsl2推荐)
-- [3. 方案 B：Docker](#3-方案-bdocker)
-- [4. 构建配置说明（buildozer.spec）](#4-构建配置说明buildozerspec)
-- [5. 常用命令清单](#5-常用命令清单)
-- [6. 常见报错排查](#6-常见报错排查)
-- [7. release 签名与上架](#7-release-签名与上架)
-- [8. 打包后验收清单](#8-打包后验收清单)
-- [9. 时间与磁盘预估](#9-时间与磁盘预估)
+- [2. 方案 A：WSL2（本机构建）](#2-方案-awsl2本机构建)
+- [3. 方案 B：GitHub Actions](#3-方案-bgithub-actions)
+- [4. 方案 C：Docker](#4-方案-cdocker)
+- [5. 构建配置说明（buildozer.spec）](#5-构建配置说明buildozerspec)
+- [6. 常用命令清单](#6-常用命令清单)
+- [7. 常见报错排查](#7-常见报错排查)
+- [8. release 签名与上架](#8-release-签名与上架)
+- [9. 打包后验收清单](#9-打包后验收清单)
+- [10. 时间与磁盘预估](#10-时间与磁盘预估)
 
 ---
 
@@ -33,6 +34,7 @@
 | 磁盘占用 | 首次约 3–5 GB（`~/.buildozer` + `.buildozer/`） |
 | 网络要求 | 能访问 dl.google.com、pypi、github（下载 SDK/NDK/recipe） |
 | 装机方式 | `adb install -r xxx.apk`，或把 APK 传到手机点击安装 |
+| 零环境路径 | 代码推到 GitHub，由 Actions 云端出包并下载（见第 3 章，无需本机装任何东西） |
 
 最小可用流程（已装好 WSL2 的情况下）：
 
@@ -66,7 +68,7 @@ Buildozer 本质是「下载 Android SDK/NDK + 调 python-for-android 交叉编�
 
 ---
 
-## 2. 方案 A：WSL2（推荐）
+## 2. 方案 A：WSL2（本机构建）
 
 ### 2.1 安装 WSL2 + Ubuntu（只需一次）
 
@@ -75,6 +77,8 @@ Buildozer 本质是「下载 Android SDK/NDK + 调 python-for-android 交叉编�
 ```powershell
 wsl --install -d Ubuntu
 ```
+
+> ⚠️ 若这条命令报 **`已禁止(403)`**（Windows 11 24H2 的存根版 `wsl.exe` 走 Microsoft Store 通道时常见），按 [WSL2_SETUP.md](WSL2_SETUP.md) 的离线安装流程操作：启用两个可选功能 → 重启 → 装 GitHub 上的 WSL MSI → `wsl --install -d Ubuntu --web-download`。
 
 按提示重启电脑，重启后会弹出 Ubuntu 窗口，设置 UNIX 用户名和密码（密码输入时不显示，正常）。
 
@@ -185,7 +189,51 @@ adb install -r planewar-1.0.0-arm64-v8a-debug.apk
 
 ---
 
-## 3. 方案 B：Docker
+## 3. 方案 B：GitHub Actions
+
+本机什么都不用装：把代码推到 GitHub，仓库自带的云端 Linux 机器完成编译，APK 作为 Artifact 下载。工作流文件已就位 —— [`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml)。
+
+### 3.1 触发构建
+
+两种方式任选：
+
+- **自动**：向 `master`（或 `main`）推送改动了 `main.py` / `buildozer.spec` / `requirements.txt` / 工作流文件的提交；
+- **手动**：仓库页面 → **Actions** → 左侧 **Build Android APK** → 右侧 **Run workflow**；想兼容老 32 位手机，在 `archs` 填 `arm64-v8a, armeabi-v7a`，否则留空。
+
+### 3.2 取 APK
+
+1. 进入仓库 **Actions** 页，点开最新一次 `Build Android APK` 运行（绿勾 = 成功）；
+2. 页面底部 **Artifacts** 区域下载 `planewar-1.0.0-arm64-v8a-debug.apk`；
+3. 解压上传到手机点击安装（需允许「安装未知来源应用」）。
+
+失败时下载 `build-log` 产物，里面是完整 buildozer 输出，对照第 7 章的报错表排查。
+
+### 3.3 耗时与额度
+
+| 项目 | 说明 |
+| --- | --- |
+| 首次构建 | 约 40–70 分钟（下载 SDK/NDK + 编译 CPython + pygame） |
+| 后续构建 | 缓存命中约 10–25 分钟（工作流缓存 `~/.buildozer` 与 `~/.gradle`） |
+| 单次上限 | 工作流设 300 分钟，GitHub 硬上限 6 小时 |
+| 免费额度 | **公开仓库的 Actions 不限时长**；私有仓库每月 2000 分钟 |
+| 缓存上限 | 单仓库 10 GB，超出后旧缓存被自动淘汰 |
+
+> 仓库设为 public 是最省心的用法：不限时长、不花钱。
+
+### 3.4 改工作流
+
+工作流就是普通 YAML，提交到仓库即生效：
+
+| 需求 | 改法 |
+| --- | --- |
+| 换触发分支名 | 改 `on.push.branches` |
+| 每次推送都构建（不限改动文件） | 删掉 `on.push.paths` 整段 |
+| 产物保留更久 | 改 `retention-days`（最大 90） |
+| 顺带出 release 包 | 加一步 `buildozer android release`，并把 keystore 放进仓库 Secrets |
+
+---
+
+## 4. 方案 C：Docker
 
 适合不想在 WSL 里装一堆依赖、或想复现干净构建环境的场景。
 
@@ -222,7 +270,7 @@ docker run --rm -v "${PWD}:/home/user/hostcwd" -v ccgame-buildozer:/home/user/.b
 
 ---
 
-## 4. 构建配置说明（buildozer.spec）
+## 5. 构建配置说明（buildozer.spec）
 
 | 配置项 | 当前值 | 说明 |
 | --- | --- | --- |
@@ -247,7 +295,7 @@ docker run --rm -v "${PWD}:/home/user/hostcwd" -v ccgame-buildozer:/home/user/.b
 
 ---
 
-## 5. 常用命令清单
+## 6. 常用命令清单
 
 在 WSL 中、项目目录内执行：
 
@@ -274,7 +322,7 @@ cd ~/ccGame && buildozer -v android debug
 
 ---
 
-## 6. 常见报错排查
+## 7. 常见报错排查
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
@@ -291,7 +339,7 @@ cd ~/ccGame && buildozer -v android debug
 
 ---
 
-## 7. release 签名与上架
+## 8. release 签名与上架
 
 debug 包用的是调试证书，只适合自己安装体验。要正式分发或上架：
 
@@ -326,7 +374,7 @@ apksigner verify planewar-release.apk
 
 ---
 
-## 8. 打包后验收清单
+## 9. 打包后验收清单
 
 装到手机后按顺序确认：
 
@@ -342,7 +390,7 @@ apksigner verify planewar-release.apk
 
 ---
 
-## 9. 时间与磁盘预估
+## 10. 时间与磁盘预估
 
 | 阶段 | 首次 | 之后 |
 | --- | --- | --- |

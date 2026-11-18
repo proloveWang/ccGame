@@ -70,7 +70,9 @@ python main.py
 ccGame/
 ├── main.py            # 全部游戏逻辑（单文件，约 700 行）
 ├── buildozer.spec     # Buildozer 打包安卓 APK 的配置
+├── .github/workflows/build-apk.yml  # GitHub Actions 云端构建 APK
 ├── BUILD_ANDROID.md   # 安卓打包完整操作手册（环境 / 构建 / 装机 / 签名 / 排错）
+├── WSL2_SETUP.md      # WSL2 装不上（403）时的排错与离线安装手册
 ├── requirements.txt   # 本地开发依赖（pygame-ce）
 ├── .gitignore         # 忽略缓存 / IDE / 打包产物
 └── README.md
@@ -130,17 +132,29 @@ while True:
 
 ## 打包成安卓 APK
 
-完整的打包操作（环境安装、构建、装机、签名、排错）已单独整理成手册：
+两条路，按「本机能不能装 Linux 环境」选。
 
-**👉 [BUILD_ANDROID.md](BUILD_ANDROID.md)**
+### 路线一：GitHub Actions（零环境，推荐）
 
-已装好 WSL2 的情况下，核心就三条命令：
+代码推到 GitHub 后，由云端 Linux 机器自动构建，APK 在仓库 **Actions** 页的 **Artifacts** 里下载。本机不需要 WSL、Docker、Android SDK 中的任何一样。
+
+- 工作流文件：[`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml)
+- 触发方式：向 `master` 推送改动 `main.py` / `buildozer.spec` 的提交，或在 Actions 页手动 **Run workflow**
+- 操作细节与耗时说明：[BUILD_ANDROID.md 第 3 章](BUILD_ANDROID.md#3-方案-bgithub-actions)
+
+### 路线二：本机 WSL2
+
+先在 Windows 上装好 WSL2 + Ubuntu（`wsl --install -d Ubuntu` 若报 `已禁止(403)`，按 [WSL2_SETUP.md](WSL2_SETUP.md) 的离线流程装），然后三条命令：
 
 ```bash
 cp -r /mnt/e/it-python/ccGame ~/ccGame    # 复制进 Linux 文件系统（不要在 /mnt/e 下构建）
 cd ~/ccGame && buildozer -v android debug # 构建
 ls -lh bin/*.apk                          # 产物
 ```
+
+完整手册（环境安装、构建、装机、签名、排错）：
+
+**👉 [BUILD_ANDROID.md](BUILD_ANDROID.md)**
 
 两个硬前提：
 
