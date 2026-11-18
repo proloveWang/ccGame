@@ -80,28 +80,28 @@ jobs:
             buildozer-${{ runner.os }}-
 
       # p4a v2024.01.21 的 jpeg/png 等 recipe 用的是 cmake_minimum_required(VERSION 2.8) 旧写法，
-      # runner 自带的 CMake 4.x 已彻底不兼容。这里插一个 cmake 垫片，把调用导到 apt 装的 CMake 3.28
-      - name: 将 cmake 指向兼容版本
+      # runner 自带的 CMake 4.x 已彻底不兼容（/usr/bin/cmake 也是 4.x）。
+      # 直接从 PyPI 装一个 CMake 3.x 并把它的 bin 前置到 PATH，让 p4a 用 3.x 构建。
+      - name: 安装兼容 p4a 的 CMake 3.x
         run: |
-          mkdir -p "$HOME/cmake-shim"
-          printf '%s\n' \
-            '#!/bin/sh' \
-            'if [ -x /usr/bin/cmake ]; then' \
-            '  exec /usr/bin/cmake "$@"' \
-            'fi' \
-            'exec /usr/local/bin/cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 "$@"' \
-            > "$HOME/cmake-shim/cmake"
-          chmod +x "$HOME/cmake-shim/cmake"
-          echo "$HOME/cmake-shim" >> "$GITHUB_PATH"
-          grep -n . "$HOME/cmake-shim/cmake"
-          /usr/bin/cmake --version | head -n 1
-          /usr/local/bin/cmake --version | head -n 1 || true
+          python -m pip install --upgrade "cmake<4"
+          CMAKE_BIN="$(python -c 'import os, cmake; print(os.path.join(os.path.dirname(cmake.__file__), "data", "bin"))')"
+          echo "pip cmake bin: $CMAKE_BIN"
+          ls -l "$CMAKE_BIN" || true
+          if [ -x "$CMAKE_BIN/cmake" ]; then
+            echo "$CMAKE_BIN" >> "$GITHUB_PATH"
+            "$CMAKE_BIN/cmake" --version | head -n 1
+          else
+            which -a cmake
+            exit 1
+          fi
 
       - name: 构建 debug APK
         env:
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
         run: |
           set -o pipefail
+          cmake --version | head -n 1
           buildozer -v android debug 2>&1 | tee buildozer-build.log
 
       - name: 汇总产物信息
