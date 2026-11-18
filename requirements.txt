@@ -1,0 +1,4 @@
+# ccGame 本地开发依赖
+# 说明：本地跑直接用 pygame-ce（社区维护版，API 与 pygame 兼容，安装更快）；
+#      buildozer.spec 里打包用的是 p4a 的 pygame recipe，两者互不影响
+pygame-ce>=2.4.0

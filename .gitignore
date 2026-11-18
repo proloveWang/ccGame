@@ -1,0 +1,28 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# IDE 配置
+.idea/
+.vscode/
+
+# 构建产物
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Buildozer 打包中间产物与输出
+.buildozer/
+bin/
+*.apk
+*.aab
+.p4a/
+
+# 日志
+*.log
