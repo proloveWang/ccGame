@@ -79,7 +79,11 @@ jobs:
           restore-keys: |
             buildozer-${{ runner.os }}-
 
+      # CMAKE_POLICY_VERSION_MINIMUM：runner 自带的 CMake 4.x 已不再兼容 cmake_minimum_required(<3.5)，
+      # 而 p4a v2024.01.21 的 jpeg/png 等 recipe 正是旧写法，不加这个环境变量会直接 configure 失败
       - name: 构建 debug APK
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
         run: |
           set -o pipefail
           buildozer -v android debug 2>&1 | tee buildozer-build.log

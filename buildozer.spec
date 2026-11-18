@@ -18,8 +18,8 @@ source.dir = .
 # 需要打进 APK 的源码扩展名（只打包 Python 文件）
 source.include_exts = py
 
-# 打包时排除的目录（IDE 配置与缓存没必要进 APK）
-source.exclude_dirs = .idea, __pycache__
+# 打包时排除的目录（IDE 配置、缓存、本地 recipe 与 CI 配置没必要进 APK）
+source.exclude_dirs = .idea, __pycache__, tools, .github
 
 # 应用启动时执行的入口文件
 source.main = main.py
@@ -34,11 +34,15 @@ requirements = python3, pygame
 p4a.bootstrap = sdl2
 
 # python-for-android 的版本（决定安卓端编译用哪个 Python）
-# 说明：p4a 的 master / v2026.05.09 已把内置 Python 升到 3.14，但它的 pygame recipe 仍锁定 pygame 2.1.0，
-#      编译时报 src_c/_sdl2/sdl2.c: fatal error: 'longintrepr.h' file not found（该头文件 3.13+ 已移除）。
-#      v2024.01.21 内置 Python 3.11.5，与这个 recipe 匹配，实测可编译通过。
+# 说明：p4a master / v2026.05.09 内置 Python 3.14，而 pygame 2.5.x 官方只支持到 3.12；
+#      v2024.01.21 内置 Python 3.11.5，是能跑 pygame 的最新一版。
 #      改这里之后必须删掉 .buildozer 重建，否则会继续用旧 p4a。
 p4a.branch = v2024.01.21
+
+# 本地 recipe 目录：覆盖 p4a 内置的 pygame recipe，把构建版本从 2.1.0 提到 2.5.2
+# 原因：pygame 2.1.0 的 src_c/_sdl2/sdl2.c 里 #include "longintrepr.h"，该头文件从 Python 3.11 起
+#      已移入 Include/cpython/，直接报 fatal error: 'longintrepr.h' file not found。
+p4a.local_recipes = ./tools/p4a_recipes
 
 # 横竖屏方向：portrait 竖屏，适配手机飞机大战
 orientation = portrait

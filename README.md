@@ -71,6 +71,7 @@ ccGame/
 ├── main.py            # 全部游戏逻辑（单文件，约 700 行）
 ├── buildozer.spec     # Buildozer 打包安卓 APK 的配置
 ├── .github/workflows/build-apk.yml  # GitHub Actions 云端构建 APK
+├── tools/p4a_recipes/  # 本地 p4a recipe（把安卓端 pygame 构建版本提到 2.5.2）
 ├── BUILD_ANDROID.md   # 安卓打包完整操作手册（环境 / 构建 / 装机 / 签名 / 排错）
 ├── WSL2_SETUP.md      # WSL2 装不上（403）时的排错与离线安装手册
 ├── requirements.txt   # 本地开发依赖（pygame-ce）
