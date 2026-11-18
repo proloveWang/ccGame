@@ -79,8 +79,24 @@ jobs:
           restore-keys: |
             buildozer-${{ runner.os }}-
 
-      # CMAKE_POLICY_VERSION_MINIMUM：runner 自带的 CMake 4.x 已不再兼容 cmake_minimum_required(<3.5)，
-      # 而 p4a v2024.01.21 的 jpeg/png 等 recipe 正是旧写法，不加这个环境变量会直接 configure 失败
+      # p4a v2024.01.21 的 jpeg/png 等 recipe 用的是 cmake_minimum_required(VERSION 2.8) 旧写法，
+      # runner 自带的 CMake 4.x 已彻底不兼容。这里插一个 cmake 垫片，把调用导到 apt 装的 CMake 3.28
+      - name: 将 cmake 指向兼容版本
+        run: |
+          mkdir -p "$HOME/cmake-shim"
+          printf '%s\n' \
+            '#!/bin/sh' \
+            'if [ -x /usr/bin/cmake ]; then' \
+            '  exec /usr/bin/cmake "$@"' \
+            'fi' \
+            'exec /usr/local/bin/cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 "$@"' \
+            > "$HOME/cmake-shim/cmake"
+          chmod +x "$HOME/cmake-shim/cmake"
+          echo "$HOME/cmake-shim" >> "$GITHUB_PATH"
+          grep -n . "$HOME/cmake-shim/cmake"
+          /usr/bin/cmake --version | head -n 1
+          /usr/local/bin/cmake --version | head -n 1 || true
+
       - name: 构建 debug APK
         env:
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
